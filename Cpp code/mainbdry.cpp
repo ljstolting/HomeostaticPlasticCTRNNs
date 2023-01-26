@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
 
           // Inactivate HP
           for (int i = 1; i<= n; i++){
-            c.ChangeHPBoundary(i, 0);
+            c.SetPlasticityBoundary(i, 0);
           }
 
           // Run the circuit for the initial transient
@@ -268,7 +268,7 @@ int main(int argc, char* argv[])
 
           // Turn on homeostatic plasticity mechanism 
           for (int i = 1; i<= n; i++){
-            c.ChangeHPBoundary(i, 0.25);
+            c.SetPlasticityBoundary(i, 0.25);
           }
 
 
@@ -357,7 +357,7 @@ int main(int argc, char* argv[])
 
           //Turn HP off
           for (int i = 1; i<= n; i++){
-            c.ChangeHPBoundary(i, 0);
+            c.SetPlasticityBoundary(i, 0);
           }
           
           //Pass short transient
