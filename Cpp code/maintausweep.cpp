@@ -1,26 +1,32 @@
 //--------------------------------------------------
 // ALIFE 2023 Timescale Separation Sweep Experiment
+//
+// How does HP's participation in oscillations change
+// as a funciton of the degree of separation between
+// its timescale and that of the neural states?
 //--------------------------------------------------
 
 #include "CTRNN.h"
 
 // Global constants
 const double TransientDuration = 500;  //in seconds, transient passed before checking frequency of osc
-const double RunDuration = 50;         //time in seconds to test 
+const double RunDuration = 50;         //time in seconds to test osc frequency
 const double StepSize = 0.01;
-const double maxNetworkSize = 20;
-const double minNetworkSize = 1;
-// const double minbdry = 0; //when searching over a variety of HP meta parameter values
-// const double maxbdry = .5;
 const double WR = 16.0;          //Weight range (+/-)
 const double BR = 16.0;          //Bias Range (+/-)
-const double TMIN = 0.5;
-const double TMAX = 10.0;
-const double Circuits = 100000;     //How many circuits in sample
-const double Repetitions = 3;    //How many initial state conditions will you start from for each circuit
+const double TMIN = 1;      //Neural taus are held constant 
+const double TMAX = 1;
+const double Circuits = 10;     //How many HPCTRNNs oscillating at the target frequncy do we want to start off with (honestly we should probably evolve them instead of random generation)
+const double Repetitions = 3;    //How many initial state conditions will you start from for each circuit (important for varying where in the cycle HP turns off)
 
-const double MinSearchValue = -1.0;
+const double MinSearchValue = -1.0;  //for random CTRNN generation
 const double MaxSearchValue = 1.0;
+
+const double HPtaumin = .5; //Minimum value of tauw and taub
+const double HPtaumax = 50; //Max value of tauw and taub
+const double HPtausample = 1; //Value of HP tau that we want to use to generate the sample of HPCTRNNs in the range 
+const double TargetFrequency = 0.855556/2;  //Target frequency obtained by halving the highest evolved freq for a 3-neuron-circuit
+const double TargetMargin = .05; //How much are "good" circuits allowed to vary from the threshold to be included in the initial sample?
 
 double clip(double x, double min, double max)
 {
@@ -61,48 +67,131 @@ void GenPhenMapping(int n, TVector<double> &gen, TVector<double> &phen)
 	}
 }
 
+// Plasticity and CTRNN size parameters
+int WS = 1; 				// Window Size of Plastic Rule (in steps size) (so 1 is no window)
+double B = 0.25; 		// Plasticity Low Boundary
+int n = 3;          //circuit size
+int VectSize = n*n + 2*n; //Number of circuit parameters
+
+// Run Circuit and Determine Frequency of oscillation (throw zero if not oscillating) -- obtain from Eduardo's code
+double frequencytest(TVector<double> &phen, double HPtau)
+  {// Generate circuit and Set phenotype to circuit
+  CTRNN c(n,WS,B,HPtau,HPtau,WR,BR);
+
+  int k = 1;
+  // Time-constants
+  for (int i = 1; i <= n; i++) {
+    c.SetNeuronTimeConstant(i, phen(k));
+    k++;
+  }
+  // Bias
+  for (int i = 1; i <= n; i++) {
+    c.SetNeuronBias(i, phen(k));
+    k++;
+  }
+  // Weights
+  for (int i = 1; i <= n; i++) {
+    for (int j = 1; j <= n; j++) {
+      c.SetConnectionWeight(i, j, phen(k));
+      k++;
+    }
+  }
+
+  //pass transient
+  for (double time = StepSize; time <= TransientDuration; time += StepSize) {
+    c.EulerStep(StepSize);
+  }
+
+  //test for oscillation
+  for (double time = StepSize; time<=RunDuration; time += StepSize){
+    c.EulerStep(StepSize);
+  }
+
+  //take final value of 
+  double freq = .425;
+
+  return freq;
+  }
+
 // The main program
 int main(int argc, char* argv[])
 {
     std::string const & FileName1 = argv[1];
-    ofstream OGdimension(FileName1);
+    ofstream basegenomes(FileName1);
     std::string const & FileName2 = argv[2];
-    ofstream trackneuralpars(FileName2);
-    std::string const & FileName3 = argv[3];
-    ofstream HPondimension(FileName3);
-    std::string const & FileName4 = argv[4];
-    ofstream HPoffdimension(FileName4);
-    std::string const & FileName5 = argv[5];
-    ofstream neuralstates(FileName5);
-    std::string const & FileName6 = argv[6];
-    ofstream centercrossingdistance(FileName6);
+    ofstream HPonfreq(FileName2);
+    // std::string const & FileName3 = argv[3];
+    // ofstream neuralstates(FileName3);
+    // std::string const & FileName4 = argv[4];
+    // ofstream trackneuralpars(FileName4);
+    // std::string const & FileName4 = argv[4];
+    // ofstream HPofffreq(FileName4);
+
 
     // Set random number generator and seed
     RandomState rs;
     long seed=-time(0);
     rs.SetRandomSeed(seed);
 
-		// Plasticity and CTRNN size parameters (comment out whichever one you are varying over the x-axis)
-		int WS = 1; 				// Window Size of Plastic Rule (in steps size) (so 1 is no window)
-		double B = 0.25; 		// Plasticity Low Boundary
-    //int n = 2;        //circuit size
-		double BT = 20.0;		// Bias Time Constant
-		double WT = 40.0;		// Weight Time Constant
+    // Initialize Vector of base genomes because can't smoothly read from file
+    TMatrix<double> basegenomematrix(1,Circuits,1,VectSize); //can't smoothly read from file, so store as matrix too
 
-    // For each boundray size
-    for (int n = minNetworkSize; n <= maxNetworkSize; n ++) {
-      cout<< "Size " << n << endl;
-      // Number of parameters
-      int VectSize = n*n + 2*n;
+    // Randomly generate HPCTRNNs to find enough in the correct frequency band (((may eventually replace with evolution)))
+    int i = 1;
+    while (i <= Circuits){
+      // Generate a random "genotype"
+      TVector<double> genotype(1,VectSize);
+      for (int i = 1; i <= VectSize; i++){
+        genotype[i] = rs.UniformRandom(MinSearchValue,MaxSearchValue);
+      }
 
-      // Number of circuits that "oscillate"
-      int counterOG = 0;
+      // Map from genotype to phenotype
+      TVector<double> phenotype;
+      phenotype.SetBounds(1, VectSize);
+      GenPhenMapping(n, genotype, phenotype);
 
-      // Number of circuits that "oscillate" while HP turned on
-      int counterHPon = 0;
+      // Run circuit and test frequency
+      double freq = frequencytest(phenotype, HPtausample);
 
-      // Number of circuits that "oscillate" after HP is turned back off
-      int counterHPoff = 0;
+      if (abs(TargetFrequency-freq)<TargetMargin){
+        for (int j=1; j<=VectSize; j++){
+          basegenomematrix(i,j) = genotype[j];
+          basegenomes << genotype[j] << " ";
+        }
+        HPonfreq << freq << " ";
+        basegenomes << endl;
+        cout << "Got " << i << " circuits in range" << endl;
+        i ++;
+      }
     }
+
+    HPonfreq << endl;
+
+    // For each HP timescale, repeat testing procedure
+    for (double HPt = HPtaumin; HPt <= HPtaumax; HPt += .1) {
+
+      cout<< "HPtau = " << HPt << endl; //progress statements
+
+      for (int i=1; i<= Circuits; i++){
+        TVector<double> genotype(1,VectSize);
+        for (int j = 1; j <= VectSize; j++){
+          genotype[j] = basegenomematrix(i,j);
+        }
+
+        // Map from genotype to phenotype
+        TVector<double> phenotype;
+        phenotype.SetBounds(1, VectSize);
+        GenPhenMapping(n, genotype, phenotype);
+
+        double freq = frequencytest(phenotype,HPt);
+
+        HPonfreq << freq << " ";
+
+      }
+
+      HPonfreq << endl;
+
+    }
+    return 0;
 }
 

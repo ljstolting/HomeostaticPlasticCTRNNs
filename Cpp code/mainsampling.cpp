@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
 		double BT = 20.0;		// Bias Time Constant
 		double WT = 40.0;		// Weight Time Constant
 
-    // For each boundray size
+    // For each network size
     for (int n = minNetworkSize; n <= maxNetworkSize; n ++) {
       cout<< "Size " << n << endl;
       // Number of parameters
@@ -108,7 +108,7 @@ int main(int argc, char* argv[])
       // Number of circuits that "oscillate" after HP is turned back off
       int counterHPoff = 0;
 
-      // Histogram of average dimensionalities observed AMONG THE OSCILLATING CIRCUITS (NEW)
+      // Histogram of average dimensionalities observed AMONG THE OSCILLATING CIRCUITS (NEW-never fully implemented)
       TVector<double> mdimOG(1,maxNetworkSize);
       mdimOG.FillContents(0);
       TVector<double> mdimHPon(1,maxNetworkSize);
