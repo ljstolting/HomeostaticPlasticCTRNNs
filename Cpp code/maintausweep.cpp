@@ -16,8 +16,8 @@ const double WR = 16.0;          //Weight range (+/-)
 const double BR = 16.0;          //Bias Range (+/-)
 const double TMIN = 1;      //Neural taus are held constant 
 const double TMAX = 1;
-const double Circuits = 10;     //How many HPCTRNNs oscillating at the target frequncy do we want to start off with (honestly we should probably evolve them instead of random generation)
-const double Repetitions = 3;    //How many initial state conditions will you start from for each circuit (important for varying where in the cycle HP turns off)
+const double Circuits = 250;     //How many HPCTRNNs oscillating at the target frequncy do we want to start off with (honestly we should probably evolve them instead of random generation)
+//const double Repetitions = 3;    //How many initial state conditions will you start from for each circuit (important for varying where in the cycle HP turns off)
 
 const double MinSearchValue = -1.0;  //for random CTRNN generation
 const double MaxSearchValue = 1.0;
@@ -74,44 +74,63 @@ int n = 3;          //circuit size
 int VectSize = n*n + 2*n; //Number of circuit parameters
 
 // Run Circuit and Determine Frequency of oscillation (throw zero if not oscillating) -- obtain from Eduardo's code
-double frequencytest(TVector<double> &phen, double HPtau)
-  {// Generate circuit and Set phenotype to circuit
-  CTRNN c(n,WS,B,HPtau,HPtau,WR,BR);
+void frequencytest(TVector<double> &phen, double HPtau, TVector<double> &freq)
+{// Generate circuit and Set phenotype to circuit
+CTRNN c(n,WS,B,HPtau,HPtau,WR,BR);
 
-  int k = 1;
-  // Time-constants
-  for (int i = 1; i <= n; i++) {
-    c.SetNeuronTimeConstant(i, phen(k));
+int k = 1;
+// Time-constants
+for (int i = 1; i <= n; i++) {
+  c.SetNeuronTimeConstant(i, phen(k));
+  k++;
+}
+// Bias
+for (int i = 1; i <= n; i++) {
+  c.SetNeuronBias(i, phen(k));
+  k++;
+}
+// Weights
+for (int i = 1; i <= n; i++) {
+  for (int j = 1; j <= n; j++) {
+    c.SetConnectionWeight(i, j, phen(k));
     k++;
   }
-  // Bias
-  for (int i = 1; i <= n; i++) {
-    c.SetNeuronBias(i, phen(k));
-    k++;
-  }
-  // Weights
-  for (int i = 1; i <= n; i++) {
-    for (int j = 1; j <= n; j++) {
-      c.SetConnectionWeight(i, j, phen(k));
-      k++;
+}
+
+/// Randomize Outputs
+c.RandomizeCircuitOutput(0.1, 0.9);
+
+//pass transient
+for (double time = StepSize; time <= TransientDuration; time += StepSize) {
+  c.EulerStep(StepSize);
+}
+
+TVector<double> pastNeuronOutput(1,n);
+for (int i=1;i<=n;i++){
+pastNeuronOutput[i] = c.NeuronOutput(i);
+}
+TVector<double> marker(1,n);
+marker = pastNeuronOutput;
+
+TVector<double> numbercycles(1,n);
+numbercycles.FillContents(0);
+
+//test for oscillation frequency of each neuron (count the number of times each neuron passes from above to below their starting value)
+for (double time = StepSize; time<=RunDuration; time += StepSize){
+  c.EulerStep(StepSize);
+  for (int i=1;i<=n;i++){
+    if (c.NeuronOutput(i)<marker[i] && pastNeuronOutput[i]>marker[i]){
+      numbercycles[i] ++;
     }
+    pastNeuronOutput[i] = c.NeuronOutput(i);
   }
+}
+// Divide by test duration in seconds
+for (int i=1;i<=n;i++){
+  freq[i] = numbercycles[i]/RunDuration;
+}
 
-  //pass transient
-  for (double time = StepSize; time <= TransientDuration; time += StepSize) {
-    c.EulerStep(StepSize);
-  }
-
-  //test for oscillation
-  for (double time = StepSize; time<=RunDuration; time += StepSize){
-    c.EulerStep(StepSize);
-  }
-
-  //take final value of 
-  double freq = .425;
-
-  return freq;
-  }
+}
 
 // The main program
 int main(int argc, char* argv[])
@@ -151,21 +170,20 @@ int main(int argc, char* argv[])
       GenPhenMapping(n, genotype, phenotype);
 
       // Run circuit and test frequency
-      double freq = frequencytest(phenotype, HPtausample);
+     TVector<double> freq(1,n);
+     frequencytest(phenotype,HPtausample,freq);
 
-      if (abs(TargetFrequency-freq)<TargetMargin){
+      if (abs(TargetFrequency-freq[1])<TargetMargin && abs(TargetFrequency-freq[2])<TargetMargin && abs(TargetFrequency-freq[3])<TargetMargin){
         for (int j=1; j<=VectSize; j++){
           basegenomematrix(i,j) = genotype[j];
           basegenomes << genotype[j] << " ";
         }
-        HPonfreq << freq << " ";
+        //HPonfreq << freq[1] << " " << freq[2] << " " << freq[3] << endl;
         basegenomes << endl;
         cout << "Got " << i << " circuits in range" << endl;
         i ++;
       }
     }
-
-    HPonfreq << endl;
 
     // For each HP timescale, repeat testing procedure
     for (double HPt = HPtaumin; HPt <= HPtaumax; HPt += .1) {
@@ -183,13 +201,12 @@ int main(int argc, char* argv[])
         phenotype.SetBounds(1, VectSize);
         GenPhenMapping(n, genotype, phenotype);
 
-        double freq = frequencytest(phenotype,HPt);
+        TVector<double> freq(1,n);
+        frequencytest(phenotype,HPt,freq);
 
-        HPonfreq << freq << " ";
+        HPonfreq << freq[1] << " " << freq[2] << " " << freq[3] << endl;
 
       }
-
-      HPonfreq << endl;
 
     }
     return 0;
