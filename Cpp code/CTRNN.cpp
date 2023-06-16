@@ -71,6 +71,8 @@ void CTRNN::SetCircuitSize(int newsize, int newwindowsize, double b, double bt, 
 	size = newsize;
 	states.SetBounds(1,size);
 	states.FillContents(0.0);
+  change.SetBounds(1,size);
+  change.FillContents(0.0);
 	outputs.SetBounds(1,size);
 	outputs.FillContents(0.0);
 	biases.SetBounds(1,size);
@@ -182,7 +184,8 @@ void CTRNN::EulerStep(double stepsize)
     double input = externalinputs[i];
     for (int j = 1; j <= size; j++)
       input += weights[j][i] * outputs[j];
-    states[i] += stepsize * Rtaus[i] * (input - states[i]);
+    change[i] = stepsize * Rtaus[i] * (input - states[i]);
+    states[i] += change[i];
   }
   // Update the outputs of all neurons.
   for (int i = 1; i <= size; i++)

@@ -66,6 +66,8 @@ class CTRNN {
         double &NeuronStateReference(int i) {return states[i];};
         void SetNeuronState(int i, double value)
             {states[i] = value;outputs[i] = sigmoid(gains[i]*(states[i] + biases[i]));};
+        double NeuronChange(int i) {return change[i];};
+        double &NeuronChangeReference(int i) {return change[i];};
         double NeuronOutput(int i) {return outputs[i];};
         double &NeuronOutputReference(int i) {return outputs[i];};
         void SetNeuronOutput(int i, double value)
@@ -115,7 +117,7 @@ class CTRNN {
         int size;
         int windowsize; // NEW for AVERAGING
         double wr, br; // NEWER for CAPPING
-        TVector<double> states, outputs, biases, gains, taus, Rtaus, externalinputs;
+        TVector<double> states, change, outputs, biases, gains, taus, Rtaus, externalinputs;
         TVector<double> rhos, tausBiases, RtausBiases, boundary; // NEW
         TVector<double> avgoutputs; // NEW for AVERAGING
         TMatrix<double> weights;
