@@ -9,15 +9,16 @@
 #include "CTRNN.h"
 
 // Global constants
-const double TransientDuration = 500;  //in seconds, transient passed before checking frequency of osc
+const double TransientDuration = 750;  //in seconds, transient passed before checking frequency of osc
 const double RunDuration = 50;         //time in seconds to test osc frequency
+const double TransientStepSize = 0.01;
 const double StepSize = 0.01;
 const double WR = 16.0;          //Weight range (+/-)
 const double BR = 16.0;          //Bias Range (+/-)
-const double TMIN = 1;      //Neural taus are held constant 
+const double TMIN = 1;      //Neural taus are held constant  
 const double TMAX = 1;
-const double Circuits = 250;     //How many HPCTRNNs oscillating at the target frequncy do we want to start off with (honestly we should probably evolve them instead of random generation)
-//const double Repetitions = 3;    //How many initial state conditions will you start from for each circuit (important for varying where in the cycle HP turns off)
+const double Circuits = 10;     //How many HPCTRNNs oscillating at the target frequncy do we want to start off with (honestly we should probably evolve them instead of random generation)
+const double Repetitions = 1;    //How many initial state conditions will you start from for each circuit
 
 const double MinSearchValue = -1.0;  //for random CTRNN generation
 const double MaxSearchValue = 1.0;
@@ -25,8 +26,12 @@ const double MaxSearchValue = 1.0;
 const double HPtaumin = .5; //Minimum value of tauw and taub
 const double HPtaumax = 50; //Max value of tauw and taub
 const double HPtausample = 1; //Value of HP tau that we want to use to generate the sample of HPCTRNNs in the range 
-const double TargetFrequency = 0.855556/2;  //Target frequency obtained by halving the highest evolved freq for a 3-neuron-circuit
-const double TargetMargin = .05; //How much are "good" circuits allowed to vary from the threshold to be included in the initial sample?
+//const double TargetFrequency = 0.855556/2;  //Target frequency obtained by halving the highest evolved freq for a 3-neuron-circuit
+//const double TargetMargin = .05; //How much are "good" circuits allowed to vary from the threshold to be included in the initial sample?
+const double TargetFrequency = 0.05;
+const double TargetMargin = 0.005;
+const double peakmarg = 0; //threshold for detecting peaks (how much must it have changed from step to step)
+//problem ^: without margin, pretty flat is detected as oscillating, but with margin particularly flat peaks are not detected
 
 double clip(double x, double min, double max)
 {
@@ -73,8 +78,8 @@ double B = 0.25; 		// Plasticity Low Boundary
 int n = 3;          //circuit size
 int VectSize = n*n + 2*n; //Number of circuit parameters
 
-// Run Circuit and Determine Frequency of oscillation (throw zero if not oscillating) -- obtain from Eduardo's code
-void frequencytest(TVector<double> &phen, double HPtau, TVector<double> &freq)
+// Run Circuit R times and Determine highest Frequency of oscillation (throw zero if not oscillating) -- obtain from Eduardo's code
+void frequencytest(TVector<double> &phen, double HPtau, TVector<double> &freq, ofstream &neuralstates, bool recordoutputs)
 {// Generate circuit and Set phenotype to circuit
 CTRNN c(n,WS,B,HPtau,HPtau,WR,BR);
 
@@ -97,38 +102,46 @@ for (int i = 1; i <= n; i++) {
   }
 }
 
-/// Randomize Outputs
-c.RandomizeCircuitOutput(0.1, 0.9);
+  for (int rep=1;rep<=Repetitions;rep++){
+    TVector<double> numberpeaks(1,n);
+    numberpeaks.FillContents(0);
+    TVector<double> tempfreq(1,n);
 
-//pass transient
-for (double time = StepSize; time <= TransientDuration; time += StepSize) {
-  c.EulerStep(StepSize);
-}
+    /// Randomize Outputs
+    c.RandomizeCircuitOutput(0.1, 0.9);
 
-TVector<double> pastNeuronOutput(1,n);
-for (int i=1;i<=n;i++){
-pastNeuronOutput[i] = c.NeuronOutput(i);
-}
-TVector<double> marker(1,n);
-marker = pastNeuronOutput;
-
-TVector<double> numbercycles(1,n);
-numbercycles.FillContents(0);
-
-//test for oscillation frequency of each neuron (count the number of times each neuron passes from above to below their starting value)
-for (double time = StepSize; time<=RunDuration; time += StepSize){
-  c.EulerStep(StepSize);
-  for (int i=1;i<=n;i++){
-    if (c.NeuronOutput(i)<marker[i] && pastNeuronOutput[i]>marker[i]){
-      numbercycles[i] ++;
+    //pass transient
+    for (double time = StepSize; time <= TransientDuration; time += StepSize) {
+      c.EulerStep(TransientStepSize);
     }
-    pastNeuronOutput[i] = c.NeuronOutput(i);
+
+    TVector<double> onebackNeuronChange(1,n);
+    for (int i=1;i<=n;i++){
+      onebackNeuronChange[i] = c.NeuronOutput(i);
+    }
+
+    //test for oscillation frequency of each neuron (count the number of peaks)
+    for (double time = StepSize; time<=RunDuration; time += StepSize){
+      if (recordoutputs){neuralstates << c.NeuronOutput(1) << " " << c.NeuronOutput(2) << " " << c.NeuronOutput(3) << endl;}
+      for (int i=1;i<=n;i++){
+        onebackNeuronChange[i] = c.NeuronChange(i);
+      }
+      c.EulerStep(StepSize);
+      for (int i=1;i<=n;i++){
+        if (c.NeuronChange(i)<0 && onebackNeuronChange[i]>0){
+          numberpeaks[i] ++;
+        }
+      }
+    }
+    // Divide by test duration in seconds
+    for (int i=1;i<=n;i++){
+      tempfreq[i] = numberpeaks[i]/RunDuration;
+      if (tempfreq[i] > freq[i]){
+        freq[i] = tempfreq[i];
+      }
+    }
+
   }
-}
-// Divide by test duration in seconds
-for (int i=1;i<=n;i++){
-  freq[i] = numbercycles[i]/RunDuration;
-}
 
 }
 
@@ -139,8 +152,8 @@ int main(int argc, char* argv[])
     ofstream basegenomes(FileName1);
     std::string const & FileName2 = argv[2];
     ofstream HPonfreq(FileName2);
-    // std::string const & FileName3 = argv[3];
-    // ofstream neuralstates(FileName3);
+    std::string const & FileName3 = argv[3];
+    ofstream neuralstates(FileName3);
     // std::string const & FileName4 = argv[4];
     // ofstream trackneuralpars(FileName4);
     // std::string const & FileName4 = argv[4];
@@ -171,8 +184,9 @@ int main(int argc, char* argv[])
 
       // Run circuit and test frequency
      TVector<double> freq(1,n);
-     frequencytest(phenotype,HPtausample,freq);
+     frequencytest(phenotype,HPtausample,freq,neuralstates,false);
 
+      //might want to change to be not the highest freq in range, but frequency *always* in range
       if (abs(TargetFrequency-freq[1])<TargetMargin && abs(TargetFrequency-freq[2])<TargetMargin && abs(TargetFrequency-freq[3])<TargetMargin){
         for (int j=1; j<=VectSize; j++){
           basegenomematrix(i,j) = genotype[j];
@@ -201,8 +215,11 @@ int main(int argc, char* argv[])
         phenotype.SetBounds(1, VectSize);
         GenPhenMapping(n, genotype, phenotype);
 
+        bool recordoutputs = true;
+        // if (i == 1){recordoutputs = true;}
+
         TVector<double> freq(1,n);
-        frequencytest(phenotype,HPt,freq);
+        frequencytest(phenotype,HPt,freq,neuralstates,recordoutputs);
 
         HPonfreq << freq[1] << " " << freq[2] << " " << freq[3] << endl;
 
