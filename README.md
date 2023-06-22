@@ -1,7 +1,7 @@
 # RoleofHPinCPGs
 
-All code used to run experiments in the conference paper:
-Characterizing the Benefits of Homeostatic Plasticity in Central Pattern Generators
+All code used to run experiments in the conference paper
+_Characterizing the Benefits of Homeostatic Plasticity in Central Pattern Generators_
 
 Authors: Lindsay Stolting, Randall D. Beer, Eduardo J. Izquierdo
 
