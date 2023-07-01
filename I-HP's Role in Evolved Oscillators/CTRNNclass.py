@@ -30,9 +30,9 @@ class CTRNN():
         self.slidingwindow = int(HPgenome[-1])                   # how far back to go in timesteps to calculate avg_firingrate (& avg_speed)
         self.max_firingrate = np.zeros(self.Size)                # keep track of the maximum firing rate (for diagnostic)
         self.min_firingrate = np.ones(self.Size)                 # keep track of the minimum firing rate (for diagnostic)
-        self.Weights = np.reshape(neurongenome[0:(size**2)],(size,size))       # weight matrix (numpy array)
-        self.Biases = neurongenome[size**2:(size**2)+size]       # bias values (numpy array)
-        self.invTimeConstants = 1.0/neurongenome[-size:]         # inverse taus (numpy array)
+        self.Weights = np.reshape(neurongenome[size*2:],(size,size))       # weight matrix (numpy array)
+        self.Biases = neurongenome[size:size*2]       # bias values (numpy array)
+        self.invTimeConstants = 1.0/neurongenome[0:size]         # inverse taus (numpy array)
         self.bias_record = np.zeros((size,len(self.time)))       # since parameters of the system are changing under the HP, track biases
         self.weight_record = np.zeros((size,size,len(self.time)))# track weights
         self.Inputs = np.zeros((size))                           # external input default to zero
@@ -81,23 +81,21 @@ class CTRNN():
         self.States = invsigmoid(o) - self.Biases
         
     def plasticFacilitationCalc(self): #calculate and update the value of rho for each neuron, using the mean firing rate from the preceding segment of runtime
-        # for i in range(self.Size):
-        #     if self.Stepnum < self.slidingwindow:
-        #         self.rhos[i] = 0   #not yet enough data to evaluate average firing rate (don't want to use instantaneous firing rate bc it oscillates)
-        #     else:
-        #         avg_firingrate = np.mean(self.ctrnn_record[i,self.Stepnum-self.slidingwindow:self.Stepnum])
-        #         if avg_firingrate > self.max_firingrate[i]:
-        #             self.max_firingrate[i] = avg_firingrate
-        #         if avg_firingrate < self.min_firingrate[i]:
-        #             self.min_firingrate[i] = avg_firingrate
-        #         if  avg_firingrate < self.lbs[i]:
-        #             self.rhos[i] = 1-(avg_firingrate/self.lbs[i])
-        #         elif avg_firingrate > self.ubs[i]:
-        #             self.rhos[i] = (self.ubs[i]-avg_firingrate)/(1-self.ubs[i])
-        #         else:
-        #             self.rhos[i] = 0  #if in range, no change 
         for i in range(self.Size):
-            self.rhos[i] = np.random(1)
+            if self.Stepnum < self.slidingwindow:
+                self.rhos[i] = 0   #not yet enough data to evaluate average firing rate (don't want to use instantaneous firing rate bc it oscillates)
+            else:
+                avg_firingrate = np.mean(self.ctrnn_record[i,self.Stepnum-self.slidingwindow:self.Stepnum])
+                if avg_firingrate > self.max_firingrate[i]:
+                    self.max_firingrate[i] = avg_firingrate
+                if avg_firingrate < self.min_firingrate[i]:
+                    self.min_firingrate[i] = avg_firingrate
+                if  avg_firingrate < self.lbs[i]:
+                    self.rhos[i] = 1-(avg_firingrate/self.lbs[i])
+                elif avg_firingrate > self.ubs[i]:
+                    self.rhos[i] = (self.ubs[i]-avg_firingrate)/(1-self.ubs[i])
+                else:
+                    self.rhos[i] = 0  #if in range, no change 
             
     
     def updateBiases(self): #use the value of rho for each neuron to dynamically change biases, scaling the change by 1/speed of walking
@@ -141,11 +139,18 @@ class CTRNN():
         for i in range(len(self.time)):
             self.ctrnnstep(adapt)
 
+    def runonoff(self):
+        for i in range(int(len(self.time)/2)):
+            self.ctrnnstep(1)
+        for i in range(int(len(self.time)/2)):
+            self.ctrnnstep(0)
+
     def plot(self):
         if self.Size == 3:
             labels = ["LP","PY","PD"]
         else:
             labels = range(self.Size)
+        plt.rcParams["figure.figsize"] = (20,3)
         for i in range(self.Size):
             lab = str(labels[i])
             plt.plot(self.time,self.ctrnn_record[i],label=lab)
@@ -153,19 +158,19 @@ class CTRNN():
         plt.title("Neural Activity")
         plt.xlabel("Time (s)")
         plt.ylabel("Firing Rate")
-        plt.rcParams["figure.figsize"] = (20,3)
         plt.legend()
         plt.show()
         
     def plotparams(self):
+        plt.rcParams["figure.figsize"] = (20,3)
         for i in range(self.Size):
             for j in range(self.Size):
                 idx = 3*i+j
                 lab = r'$w_{%s%s}$'%(i,j)
-                plt.plot(self.time,self.weight_record[i,j,:],label=r"w_{%s%s}"%(i,j))
+                plt.plot(self.time,self.weight_record[i,j,:],label=r'$w_{%s%s}$'%(i,j))
         for i in range(self.Size):
             plt.plot(self.time,self.bias_record[i,:],label=r'$\theta_%s$'%i)
-        plt.plot("CTRNN Parameters")
+        plt.title("CTRNN Parameters")
         plt.xlabel("Time (s)")
         plt.ylabel("Param. Value")
         plt.legend()

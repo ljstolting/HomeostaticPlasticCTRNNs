@@ -18,10 +18,11 @@ const double BehaviorDuration = 500;
 //const double OscillationDuration = 100;
 const double DurThreshold = 1000;
 const double StepSize = 0.01;
-const double TargetFrequency = .05;
+const double TargetFrequency = .1;
 const double DistThreshold = 0.075;
 
 // EA params
+const int RUNS = 50;
 const int POPSIZE = 50;
 const int GENS = 50;
 const double MUTVAR = 0.01;
@@ -39,16 +40,9 @@ const double TMAX = 1;
 // Plasticity parameters
 const int WS = 1;			// Window Size of Plastic Rule (in steps size) (so 1 is no window)
 const double B = 0.25; 		// Plasticity Low Boundary
-double BT = 1.0;	// Bias Time Constant
-double WT = 1.0;	// Weight Time Constant
+double BT = 20.0;	// Bias Time Constant
+double WT = 40.0;	// Weight Time Constant
 
-// Tau Sweep parameters
-const double HPtaustart = 1;  //may later include data for .5 as interest (faster than neural timescale)
-const double HPtaustop = 100;
-const double HPtaustep = 1;
-const int Circuits = 25; //Number of circuits to evolve (runs to complete) at each value of HP tau
-const int Repetitions = 1; 
-//^ Number of initial conditions from which to test each circuit (Does HP only sometimes find a limit cycle? does turning it off only sometimes affect performance?)
 //const bool doBehavior = 0; //Whether to run the best circuits to record their outputs and parameters for BehaviorDuration
 
 int	VectSize = N*N + 2*N;
@@ -575,40 +569,18 @@ int main (int argc, const char* argv[])
 	cout.rdbuf(file.rdbuf());
 	#endif
 
-	ofstream OGfreqfile;
-	OGfreqfile.open("OGfrequency.dat");
-	ofstream HPofffreqfile;
-	HPofffreqfile.open("HPofffrequency.dat");
 	ofstream EvolvedPhenFile;
 	EvolvedPhenFile.open("EvolvedPhenotypes.dat");
 
-	double attainedfitness = 0;
-	int attempts = 0;
-
-	for (double HPtau = HPtaustart;HPtau<=HPtaustop;HPtau+=HPtaustep){
-		BT = HPtau;
-		WT = HPtau;
-		for (int c=1;c<=Circuits;c++){
-			long IDUM=-time(0);
-			attainedfitness = 0;
-			attempts = 0;
-			while (attainedfitness < 0.999996 && attempts < 10){  //make sure that every circuit attains a reasonable fitness (good target freq)
-				attempts ++;
-				attainedfitness = EvolRun(IDUM);
-				if (attempts == 10){cout << "warning, max of 10 attempts reached" << endl;}
-			}
-			ifstream genefile("best.gen.dat");
-			TVector<double> genotype(1, VectSize);
-			TVector<double> phenotype(1,VectSize);
-			genefile >> genotype;
-			GenPhenMapping(genotype,phenotype);
-			//EvolvedPhenFile << phenotype << endl;
-			//if((HPtau==1. || HPtau==25. || HPtau==50. || HPtau==100.) && c==1){Behavior(genotype);} //record the timeseries of select circuits from sweep
-			for (int r=1;r<=Repetitions;r++){
-				OGfreqfile << FreqCalcHPon(genotype,rs) << endl;
-				HPofffreqfile << FreqCalcHPoff(genotype,rs) << endl;
-			}
-		}
+	for (int run=1;run<=RUNS;run++){
+		long IDUM=-time(0);
+		EvolRun(IDUM);
+		ifstream genefile("best.gen.dat");
+		TVector<double> genotype(1, VectSize);
+		TVector<double> phenotype(1,VectSize);
+		genefile >> genotype;
+		GenPhenMapping(genotype,phenotype);
+		EvolvedPhenFile << phenotype << endl;
 	}
 	return 0;
 }
