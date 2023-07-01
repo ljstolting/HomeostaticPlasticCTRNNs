@@ -1,3 +1,11 @@
+//------------------------------
+// ALIFE 2023 Evolving HPCTRNNs to match target frequency
+//
+// Once oscillators are obtained, what is the role of HP in their success?
+// We find that, often, HP is fully responsible for their oscillations
+//------------------------------
+
+
 #include "TSearch.h"
 #include "CTRNN.h"
 #include "random.h"
