@@ -146,32 +146,52 @@ class CTRNN():
             self.ctrnnstep(0)
 
     def plot(self):
+        orange = '#fe7c2b'
+        margin = 500
+        halftime = int(len(self.time)/2)
         if self.Size == 3:
             labels = ["LP","PY","PD"]
         else:
             labels = range(self.Size)
-        plt.rcParams["figure.figsize"] = (20,3)
+        plt.rcParams["figure.figsize"] = (10,3)
         for i in range(self.Size):
             lab = str(labels[i])
-            plt.plot(self.time,self.ctrnn_record[i],label=lab)
-        plt.plot(self.time,.5*np.ones(len(self.time)))
-        plt.title("Neural Activity")
-        plt.xlabel("Time (s)")
-        plt.ylabel("Firing Rate")
-        plt.legend()
+            plt.plot(self.time[halftime-margin:halftime],self.ctrnn_record[i,halftime-margin:halftime],label=lab,color=orange)
+            plt.plot(self.time[halftime:halftime+margin],self.ctrnn_record[i,halftime:halftime+margin],color='k')
+        # plt.plot(self.time,.5*np.ones(len(self.time)))
+        # plt.title("Neural Activity")
+        # plt.xlabel("Time (s)")
+        plt.ylabel("Neural Outputs")
+        plt.xticks([])
+        plt.yticks([])
+        # plt.legend()
+        plt.savefig('notHPenabledoutputs.png', transparent=True)
         plt.show()
         
     def plotparams(self):
-        plt.rcParams["figure.figsize"] = (20,3)
+        orange = '#fe7c2b'
+        margin = 500
+        halftime = int(len(self.time)/2)
+        plt.rcParams["figure.figsize"] = (10,3)
         for i in range(self.Size):
             for j in range(self.Size):
                 idx = 3*i+j
                 lab = r'$w_{%s%s}$'%(i,j)
-                plt.plot(self.time,self.weight_record[i,j,:],label=r'$w_{%s%s}$'%(i,j))
+                plt.plot(self.time[halftime-margin:halftime],self.weight_record[i,j,halftime-margin:halftime],label=r'$w_{%s%s}$'%(i,j),color=orange)
         for i in range(self.Size):
-            plt.plot(self.time,self.bias_record[i,:],label=r'$\theta_%s$'%i)
-        plt.title("CTRNN Parameters")
+            plt.plot(self.time[halftime-margin:halftime],self.bias_record[i,halftime-margin:halftime],label=r'$\theta_%s$'%i,color=orange)
+        for i in range(self.Size):
+            for j in range(self.Size):
+                idx = 3*i+j
+                lab = r'$w_{%s%s}$'%(i,j)
+                plt.plot(self.time[halftime:halftime+margin],self.weight_record[i,j,halftime:halftime+margin],color='k')
+        for i in range(self.Size):
+            plt.plot(self.time[halftime:halftime+margin],self.bias_record[i,halftime:halftime+margin],color = 'k')
+        # plt.title("CTRNN Parameters")
         plt.xlabel("Time (s)")
-        plt.ylabel("Param. Value")
-        plt.legend()
+        plt.ylabel("CTRNN Parameters")
+        plt.xticks([])
+        plt.yticks([])
+        # plt.legend()
+        plt.savefig('notHPenabledparams.png', transparent=True)
         plt.show()
